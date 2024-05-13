@@ -7,6 +7,8 @@ const app = express();
 
 let locations = [];
 
+let stations = [2, 75, 170, 320, 510, 658, 863];
+
 fs.readFile("tram_path.json", "utf8", (err, data) => {
     if (err) {
         console.error("Error reading file:", err);
@@ -22,7 +24,7 @@ fs.readFile("tram_path.json", "utf8", (err, data) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile('D:/KFUPM/Senior Project Files/Nodejs API/index.html');
+    res.send('this is the root');
 });
 
 app.post("/tram/path", bodyParser.json(), (req, res) => {
@@ -47,9 +49,13 @@ const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
 
+function areEqualDouble(num1, num2, epsilon = Number.EPSILON) {
+    return Math.abs(num1 - num2) < epsilon;
+}
+
 const io = socket(server)
-const speed = 200;
-const interval = 7200/speed;
+let speed = 200;
+let interval = 7200/speed;
 
 let currentIndex = 0;
 let indexFactor = 1;
@@ -68,7 +74,37 @@ function emitNextLocation() {
     currentIndex = currentIndex + 1*indexFactor;
 }
 
-setInterval(emitNextLocation, interval);
+let intervalId;
+let isPaused = false;
+
+function startStreaming(interval) {
+    intervalId = setInterval(emitNextLocation, interval);
+}
+
+function stopStreaming() {
+    clearInterval(intervalId);
+}
+
+function shouldPauseStreaming() {
+    return stations.includes(currentIndex);
+}
+
+startStreaming(interval);
+
+setInterval(() => {
+    if (shouldPauseStreaming() && !isPaused) {
+        stopStreaming();
+        isPaused = true;
+        const pauseDuration = 3000;
+        console.log("Streaming paused for " + pauseDuration + " milliseconds.");
+        setTimeout(() => {
+            currentIndex = currentIndex + 1*indexFactor;
+            startStreaming(interval);
+            isPaused = false;
+            console.log("Streaming resumed.");
+        }, pauseDuration);
+    }
+}, 10);
 
 io.on('connection', (socket) => {
     console.log('A client connected');
